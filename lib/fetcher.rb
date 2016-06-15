@@ -1,36 +1,37 @@
 require 'open-uri'
 require 'nokogiri'
 require 'typhoeus'
+require 'yaml'
 
-# The `Fetcher` class scrapes bloomberg.com to get a list of all stocks.
-# To do so it extracts all sectors from the search form to make a 2nd request
-# to get all industries per sector. For each industry it extracts the tickers
-# of each containing company. In case of a paginated response it follows all
+# The `Fetcher` class scrapes symbol lookup page of bloomberg.com to get a list
+# of all stock ticker symbols. In case of a paginated response it follows all
 # subsequent linked pages.
 #
-# @example Fetch all stocks.
+# @example Get a list of all tickers.
 #   run
 #   #=> [412:HK, 8439:JP, CGF:AU, ...]
 #
-# @example Fetch stocks from US only.
-#   run(regions: 'US')
-#   # => [GAS:US, ATO:US]
+# @example Get a list of all stock tickers.
+#   run(type: 'Common Stock')
+#   #=> [412:HK, 8439:JP, CGF:AU, ...]
 #
-# @example Get a list of all sectors.
-#   sectors
-#   #=> ['sectors/sectordetail.asp?code=25',
-#        'sectors/sectordetail.asp?code=30']
+# @example Fetch only equity indexes.
+#   type('Equity Index')
 #
-# @example Get all industries from energy sector.
-#   industries('sectors/sectordetail.asp?code=25')
-#   #=> ['industries/industrydetail.asp?code=1010',
-#        'industries/industrydetail.asp?code=1020']
+# @example Get a list of all linked sub-result pages.
+#   linked_pages('bloomberg.com/markets/symbolsearch?query=A')
+#   #=> ['bloomberg.com/markets/symbolsearch?query=A&page=2',
+#        'bloomberg.com/markets/symbolsearch?query=A&page=3', ...]
 #
-# @example Get all companies from transportation industry.
-#   industries('industries/industrydetail.asp?code=203020')
-#   # => ['stocks/snapshot/snapshot.asp?capid=6491293',
-#         'stocks/snapshot/snapshot.asp?capid=248501']
+# @example Find out if the list is paginated.
+#   follow_linked_pages? 'bloomberg.com/markets/symbolsearch?query=A'
+#   #=> true
 class Fetcher
+  # Default abbreviations to search for.
+  ABBREVIATIONS = YAML.load_file('data/abbreviations.yaml').freeze
+
+  private_constant :ABBREVIATIONS
+
   # Intialize the fetcher.
   #
   # @return [ PreFetcher ] A new fetcher instance.
@@ -39,206 +40,129 @@ class Fetcher
     @stocks = []
   end
 
-  # Bloomberg devides sectors and industries into regions like US or Europe.
-  # Get or limit the regions to focus on.
+  # The type of the stock to look for when searching for ticker symbols.
   #
-  # @example Limit regions to Europe and Asia only.
-  #   regions :Europe, :Asia
-  #   # => [:Europe, :Asia]
+  # @example Fetch only equity indexes.
+  #   type('Equity Index')
+  #   #=> 'Equity Index'
   #
-  # @example List regions only.
-  #   regions
-  #   # => [:Americas, :Europe, :Asia, :MidEastAfr]
+  # @example Fetch any type.
+  #   type(/.?/)
+  #   #=> /.?/
   #
-  # @return [ Array<String> ]
-  def regions(*regions)
-    @regions = regions.flatten if regions && regions.any?
-    @regions ||= %w(Americas Europe Asia MidEastAfr)
+  # @example Get the assigned type.
+  #   type
+  #   #=> /Stock$/
+  #
+  # @param [ String|Regex ] type Optional for assignment.
+  #
+  # @return [ String|Regex ] Defaults to: 'Common Stock'
+  def type(type = nil)
+    @type = type if type
+    @type ||= /Stock$/
   end
 
-  # List of all sectors.
+  # Extract all stock tickers found inside the table with type `Common Stock`.
   #
   # @example
-  #   sectors
-  #   #=> ['sectors/sectordetail.asp?code=25',
-  #        'sectors/sectordetail.asp?code=30']
-  #
-  # @return [ Array<String> ] List of absolute URLs
-  def sectors
-    url  = abs_url('overview/sectorlanding.asp')
-    page = Nokogiri::HTML(open(url))
-
-    page.css('#sectorTable h3 a').map { |link| abs_url link[:href][3..-1] }
-  rescue Timeout::Error
-    []
-  end
-
-  # List of all industries of the specified sector.
-  #
-  # @example Get all industries for energy sector.
-  #   industries('sectors/sectordetail.asp?code=25')
-  #   #=> ['industries/industrydetail.asp?code=1010',
-  #        'industries/industrydetail.asp?code=1020']
-  #
-  # @param [ Nokogiri::HTML ] page A parsed search result page of a sector.
-  #
-  # @return [ Array<String> ] List of absolute URLs.
-  def industries(page)
-    sel = '#columnLeft > div.mb20 > table > tbody > tr > td:nth-child(1) > a'
-
-    page.css(sel).map { |link| abs_url link[:href][3..-1] }
-  end
-
-  # List of all companies found within the search result page.
-  #
-  # @example Get all companies for the transportation industry.
-  #   industries('industries/industrydetail.asp?code=203020')
-  #   # => ['stocks/snapshot/snapshot.asp?capid=6491293',
-  #         'stocks/snapshot/snapshot.asp?capid=248501']
-  #
-  # @param [ Nokogiri::HTML ] page A parsed search result page of a sector.
-  #
-  # @return [ Array<String> ] List of absolute URLs.
-  def companies(page)
-    sel = '#columnLeft > div:nth-child(10) > table > tbody > tr > td:nth-child(1) > a.link_s' # rubocop:disable Metrics/LineLength
-    str = '/sectorandindustry/..'
-
-    page.css(sel).map { |link| abs_url(link[:href][3..-1]).sub!(str, '') }
-  end
-
-  # Extract the ticker from the page.
-  #
-  # @example Ticker symbol from facebook page.
-  #   ticker(page)
-  #   # => 'FB2A:GR'
+  #   stocks(page)
+  #   # => ["AAPL:US", "AMZN:US", "ABI:BB", "GOOGL:US", "GOOG:US", "AMGN:US"]
   #
   # @param [ Nokogiri::HTML ] page A parsed search result page.
-  # @param [ String ] url Optional URL which contains the ticker symbol.
   #
-  # @return [ Array<String> ] Ticker symbol.
-  def ticker(page, url = nil)
-    sym = url.scan(/[A-Z]*:[A-Z]*$/).first if url
+  # @return [ Array<String> ] List of containig ticker symbols.
+  def stocks(page)
+    sel = '#primary_content > div.symbol_search > table tr:not(.data_header)'
 
-    return sym if sym
-
-    sel = '#rrQuoteBox table tr > td:nth-child(1) > a text()'
-    sym = page.at_css(sel)
-
-    unless sym
-      sel = '#content div.basic-quote div.ticker-container div.ticker text()'
-      sym = page.at_css(sel)
-    end
-
-    sym.text.strip if sym
+    page.css(sel)
+        .select { |tr| tr.at_css('td:nth-child(4) text()').text.match(type) }
+        .map { |tr| tr.at_css('td.symbol a text()').text }
   end
 
   # Determine whether the fetcher has to follow linked lists in case of
   # pagination. To follow is only required if the URL of the response
-  # does not include the `firstrow` query attribute.
+  # does not include the `page` query attribute.
   #
-  # @example Follow paginating of the 1st result page of semiconductor industry.
-  #   follow_linked_pages? 'industrydetail.asp?code=453010'
+  # @example Follow paginating of the 1st result page.
+  #   follow_linked_pages? 'bloomberg.com/markets/symbolsearch?query=A'
   #   #=> true
   #
-  # @example Follow paginating of the 2nd result page of semiconductor industry.
-  #   follow_linked_pages? 'industrydetail.asp?code=453010&firstrow=20'
+  # @example Follow paginating of the 2nd result page.
+  #   follow_linked_pages? 'bloomberg.com/markets/symbolsearch?query=A&page=2'
   #   #=> false
   #
   # @param [ String ] url The URL of the HTTP request.
   #
   # @return [ Boolean ] true if the linked pages have to be scraped as well.
   def follow_linked_pages?(url)
-    url !~ /firstrow/
+    url.length <= 54
   end
 
   # Scrape all linked lists found on the specified search result page.
   #
-  # @example Linked pages of the semiconductor industry.
-  #   linked_pages('industries/industrydetail.asp?code=453010')
-  #   #=> ['industrydetail.asp?code=453010&firstrow=20',
-  #        'industrydetail.asp?code=453010&firstrow=40']
+  # @example
+  #   linked_pages('bloomberg.com/markets/symbolsearch?query=A')
+  #   #=> ['bloomberg.com/markets/symbolsearch?query=A&page=2',
+  #        'bloomberg.com/markets/symbolsearch?query=A&page=3', ...]
   #
   # @param [ Nokogiri::HTML ] page A parsed search result page.
+  # @param [ String] The URL of the page.
   #
   # @return [ Array<String> ] List of URIs pointing to each linked page.
-  def linked_pages(page)
-    sel = '#columnLeft div.paging a.link'
-    page.css(sel).map { |link| abs_url "industries/#{link['href']}" }
+  def linked_pages(page, url = '')
+    sel = '#primary_content > div.symbol_search > div.ticker_matches text()'
+    lbl = page.at_css(sel).text.strip
+    amount, total = lbl.scan(/(\d+) of (\d+)$/).flatten!.map!(&:to_f)
+
+    return [] if amount == 0 || amount >= total
+
+    (2..(total / amount).round).map { |site| "#{url}&page=#{site}" }
+  rescue NoMethodError
+    []
   end
 
   # Run the hydra to scrape all sectors first, then each industries per sector
   # and finally all stocks per industry to get their exchance ticker.
   #
-  # @example Scrape all stocks for all regions.
+  # @example Fetch all stocks for all regions.
   #   run
   #   #=> [412:HK, 8439:JP, CGF:AU, ...]
   #
-  # @example Scrape stocks from US only.
-  #   run(regions: 'US')
-  #   # => [GAS:US, ATO:US]
+  # @example Fetch all common stocks.
+  #   run(type: 'Common Stock')
+  #   #=> [412:HK, 8439:JP, CGF:AU, ...]
   #
-  # @param [ Array<String> ] regions A subset of Boombergs regions.
-  #                                  Defaults to: All available regions.
+  # @param [ String ] type Optional argument
   #
   # @return [ Array<String> ] Array of stock tickers.
-  def run(regions: nil)
-    self.regions(*regions) if regions
-    scrape_sectors
+  def run(type: nil, abbrevs: ABBREVIATIONS)
+    type(type)
+
+    abbrevs.each { |abbr| scrape abs_url("markets/symbolsearch?query=#{abbr}") }
 
     @hydra.run
-    @stocks.dup
+    @stocks.dup.uniq
   ensure
     @stocks.clear
   end
 
   private
 
-  # Iterate over all sectors and scrape their industries.
+  # Add the specified link to the hydra and invoke the callback once
+  # the response is there.
+  #
+  # @example Scrape all stocks including the letter 'A'.
+  #   scrape 'http://www.bloomberg.com/markets/symbolsearch?query=A'
+  #
+  # @param [ String ] url An absolute URL of a page with search results.
   #
   # @return [ Void ]
-  def scrape_sectors
-    sectors.each { |url| scrape url, :scrape_industries }
-  end
+  def scrape(url)
+    req = Typhoeus::Request.new(url)
 
-  # Iterate over all industies and scrape their companies.
-  #
-  # @param [ Typhoeus::Response ] res The response of the HTTP request.
-  #
-  # @return [ Void ]
-  def scrape_industries(res)
-    return unless res.success?
+    req.on_complete(&method(:on_complete))
 
-    page  = Nokogiri::HTML(res.body)
-    uris  = industries(page)
-
-    uris.each { |industry| scrape_companies(industry) }
-  end
-
-  # Scrape the companies of that industry within each region.
-  #
-  # @param [ String ] url The URL of an industry.
-  #
-  # @return [ Void ]
-  def scrape_companies(url)
-    regions.each { |region| scrape "#{url}&region=#{region}", :scrape_tickers }
-  end
-
-  # Iterate over all industies and scrape their companies.
-  #
-  # @param [ Typhoeus::Response ] res The response of the HTTP request.
-  #
-  # @return [ Void ]
-  def scrape_tickers(res)
-    return unless res.success?
-
-    page = Nokogiri::HTML(res.body)
-    uris = companies(page)
-
-    uris.each { |uri| scrape uri }
-
-    return unless follow_linked_pages? res.effective_url
-
-    linked_pages(page).each { |site| scrape site, :scrape_tickers }
+    @hydra.queue req
   end
 
   # Final callback of the `scrape` method that extracts the ticker symbol from
@@ -248,44 +172,28 @@ class Fetcher
   #
   # @return [ Void ]
   def on_complete(res)
-    url = res.effective_url
+    return unless res.success?
 
-    return if url =~ /stocks$/
+    url     = res.effective_url
+    page    = Nokogiri::HTML(res.body)
+    tickers = stocks(page)
 
-    page   = Nokogiri::HTML(res.body)
-    ticker = ticker(page, url)
-
-    @stocks << ticker if ticker
-  end
-
-  # Add the specified link to the hydra and invoke the callback once
-  # the response is there.
-  #
-  # @example Scrape all industries of the energy sector.
-  #   scrape 'sectors/sectordetail.asp?code=10', :scrape_industries
-  #
-  # @param [ String ] url An absolute URL of a page with search results.
-  # @param [ Symbol ] calback The name of the callback method.
-  #
-  # @return [ Void ]
-  def scrape(url, callback = :on_complete)
-    req = Typhoeus::Request.new(url, followlocation: true)
-
-    req.on_complete(&method(callback))
-
-    @hydra.queue req
+    linked_pages(page, url).each { |p| scrape p } if follow_linked_pages? url
+  ensure
+    @stocks.concat(tickers) if defined?(tickers) && tickers
+    puts @stocks.count
   end
 
   # Add host and protocol to the URI to be absolute.
   #
   # @example
-  #   abs_url('overview/sectorlanding.asp')
-  #   #=> 'http://www.bloomberg.com/research/sectorandindustry/overview/sectorlanding.asp'
+  #   abs_url('quote/AMZ:GR')
+  #   #=> 'https://www.bloomberg.com/quote/AMZ:GR'
   #
   # @param [ String ] A relative URI.
   #
   # @return [ String ] The absolute URI.
   def abs_url(url)
-    "http://www.bloomberg.com/research/sectorandindustry/#{url}"
+    "http://www.bloomberg.com/#{url}"
   end
 end

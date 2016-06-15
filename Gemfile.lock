@@ -17,10 +17,7 @@ GEM
     fakefs (0.8.1)
     ffi (1.9.10)
     hashdiff (0.3.0)
-    hirb (0.7.3)
     json (1.8.3)
-    method_profiler (2.0.1)
-      hirb (>= 0.6.0)
     method_source (0.8.2)
     mini_portile2 (2.1.0)
     nokogiri (1.6.8)
@@ -54,7 +51,6 @@ GEM
       simplecov-html (~> 0.10.0)
     simplecov-html (0.10.0)
     slop (3.6.0)
-    stackprof (0.2.9)
     typhoeus (1.0.2)
       ethon (>= 0.9.0)
     webmock (2.1.0)
@@ -71,13 +67,11 @@ DEPENDENCIES
   codeclimate-test-reporter
   dropbox-sdk (~> 1.6)
   fakefs (~> 0.8)
-  method_profiler
   nokogiri (~> 1.6)
   pry-nav
   rake (~> 11.1)
   rspec (~> 3.4)
   simplecov
-  stackprof
   typhoeus (~> 1.0)
   webmock (~> 2.0)
   whenever (~> 0.9)
