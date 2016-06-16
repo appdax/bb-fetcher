@@ -29,7 +29,7 @@ require 'yaml'
 #   #=> true
 class Fetcher
   # Default abbreviations to search for.
-  ABBREVIATIONS = YAML.load_file('data/abbreviations.yaml').freeze
+  ABBREVIATIONS ||= YAML.load_file('lib/data/abbreviations.yaml').freeze
 
   private_constant :ABBREVIATIONS
 

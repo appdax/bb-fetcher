@@ -7,4 +7,4 @@ require 'bundler/setup'
 
 require 'extensions/exception_notifier'
 
-Dir.chdir('lib') { Dir['tasks/*.rake'].each { |file| load file } }
+Dir['lib/tasks/*.rake'].each { |file| load file }
