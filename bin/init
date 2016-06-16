@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cd $APP_HOME && \
+bundle exec rake drive:check && \
+crond -f -d 8

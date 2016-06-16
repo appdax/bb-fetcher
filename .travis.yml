@@ -12,5 +12,10 @@ script:
   - docker build -t appdax/bb-fetcher:test -f Dockerfile.test .
   - docker run -e CODECLIMATE_REPO_TOKEN=$CODECLIMATE_REPO_TOKEN -t appdax/bb-fetcher:test
   - docker rmi -f appdax/bb-fetcher:test
+  - docker build -t appdax/bb-fetcher:edge -f Dockerfile .
   - docker ps -a
   - docker images --filter "dangling=false"
+
+after_success:
+  - docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+  - docker push appdax/bb-fetcher
