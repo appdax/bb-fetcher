@@ -141,7 +141,7 @@ class Fetcher
     abbrevs.each { |abbr| scrape abs_url("markets/symbolsearch?query=#{abbr}") }
 
     @hydra.run
-    @stocks.dup.uniq
+    @stocks.uniq { |sym| sym.scan(/^[^:]*/)[0] }
   ensure
     @stocks.clear
   end
