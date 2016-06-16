@@ -3,7 +3,7 @@ GEM
   specs:
     addressable (2.4.0)
     chronic (0.10.2)
-    codeclimate-test-reporter (0.5.1)
+    codeclimate-test-reporter (0.5.2)
       simplecov (>= 0.7.1, < 1.0.0)
     coderay (1.1.1)
     crack (0.4.3)
@@ -57,7 +57,7 @@ GEM
       addressable (>= 2.3.6)
       crack (>= 0.3.2)
       hashdiff
-    whenever (0.9.5)
+    whenever (0.9.7)
       chronic (>= 0.6.3)
 
 PLATFORMS
