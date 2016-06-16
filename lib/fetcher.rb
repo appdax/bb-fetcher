@@ -31,8 +31,6 @@ class Fetcher
   # Default abbreviations to search for.
   ABBREVIATIONS ||= YAML.load_file('lib/data/abbreviations.yaml').freeze
 
-  private_constant :ABBREVIATIONS
-
   # Intialize the fetcher.
   #
   # @return [ PreFetcher ] A new fetcher instance.
@@ -45,11 +43,11 @@ class Fetcher
   #
   # @example Fetch only equity indexes.
   #   type('Equity Index')
-  #   #=> 'Equity Index'
+  #   #=> self
   #
   # @example Fetch any type.
   #   type(/.?/)
-  #   #=> /.?/
+  #   #=> self
   #
   # @example Get the assigned type.
   #   type
@@ -61,6 +59,8 @@ class Fetcher
   def type(type = nil)
     @type = type if type
     @type ||= /Stock$/
+
+    type.nil? ? @type : self
   end
 
   # Accessor for the abbreviations to look for.
@@ -68,7 +68,7 @@ class Fetcher
   #
   # @example Limit to AGs (Aktiengesellschaften)
   #   abbrevs('AG')
-  #   #=> ['AG']
+  #   #=> self
   #
   # @example Get the assigned abbreviations.
   #   abbrevs
@@ -77,11 +77,13 @@ class Fetcher
   # @param [ Array<String> ] abbrevs Optional assignment.
   #
   # @return [ Array<String> ] Defaults to: ABBREVIATIONS
-  def abbrevs(*abbrevs)
-    list = abbrevs ? abbrevs.flatten.compact : []
+  def abbrevs(abbrevs = nil)
+    list = abbrevs.compact if abbrevs
 
-    @abbrevs   = list if list.any?
+    @abbrevs   = list if list
     @abbrevs ||= ABBREVIATIONS.dup
+
+    list.nil? ? @abbrevs : self
   end
 
   # Extract all stock tickers found inside the table with type `Common Stock`.
@@ -117,7 +119,7 @@ class Fetcher
   #
   # @return [ Boolean ] true if the linked pages have to be scraped as well.
   def follow_linked_pages?(url)
-    url.length <= 54
+    url !~ /page=/
   end
 
   # Scrape all linked lists found on the specified search result page.
@@ -138,7 +140,7 @@ class Fetcher
 
     return [] if amount == 0 || amount >= total
 
-    (2..(total / amount).round).map { |site| "#{url}&page=#{site}" }
+    (2..(total / amount).ceil).map { |site| "#{url}&page=#{site}" }
   rescue NoMethodError
     []
   end
@@ -164,8 +166,9 @@ class Fetcher
   # @return [ Array<String> ] Array of stock tickers.
   def run(type: nil, abbrevs: nil)
     type(type)
+    abbrevs(abbrevs)
 
-    abbrevs(abbrevs).each do |abbr|
+    self.abbrevs.each do |abbr|
       scrape abs_url("markets/symbolsearch?query=#{abbr}")
     end
 
@@ -210,7 +213,6 @@ class Fetcher
     linked_pages(page, url).each { |p| scrape p } if follow_linked_pages? url
   ensure
     @stocks.concat(tickers) if defined?(tickers) && tickers
-    puts @stocks.count
   end
 
   # Add host and protocol to the URI to be absolute.
