@@ -15,8 +15,9 @@ require 'yaml'
 #   run(type: 'Common Stock')
 #   #=> [412:HK, 8439:JP, CGF:AU, ...]
 #
-# @example Fetch only equity indexes.
-#   type('Equity Index')
+# @example Fetch AGs (Aktiengesellschaften) only.
+#   run(type: 'Common Stock', abbrevs: 'AG')
+#   #=> [SAP:GR]
 #
 # @example Get a list of all linked sub-result pages.
 #   linked_pages('bloomberg.com/markets/symbolsearch?query=A')
@@ -56,10 +57,31 @@ class Fetcher
   #
   # @param [ String|Regex ] type Optional for assignment.
   #
-  # @return [ String|Regex ] Defaults to: 'Common Stock'
+  # @return [ String|Regex ] Defaults to: /Stock$/
   def type(type = nil)
     @type = type if type
     @type ||= /Stock$/
+  end
+
+  # Accessor for the abbreviations to look for.
+  # See Fetcher::ABBREVIATIONS for the default list.
+  #
+  # @example Limit to AGs (Aktiengesellschaften)
+  #   abbrevs('AG')
+  #   #=> ['AG']
+  #
+  # @example Get the assigned abbreviations.
+  #   abbrevs
+  #   #=> ['Ltd', 'Corp', 'AG', ...]
+  #
+  # @param [ Array<String> ] abbrevs Optional assignment.
+  #
+  # @return [ Array<String> ] Defaults to: ABBREVIATIONS
+  def abbrevs(*abbrevs)
+    list = abbrevs ? abbrevs.flatten.compact : []
+
+    @abbrevs   = list if list.any?
+    @abbrevs ||= ABBREVIATIONS.dup
   end
 
   # Extract all stock tickers found inside the table with type `Common Stock`.
@@ -132,13 +154,20 @@ class Fetcher
   #   run(type: 'Common Stock')
   #   #=> [412:HK, 8439:JP, CGF:AU, ...]
   #
-  # @param [ String ] type Optional argument
+  # @example Fetch AGs (Aktiengesellschaften) only.
+  #   run(type: 'Common Stock', abbrevs: 'AG')
+  #   #=> [SAP:GR]
+  #
+  # @param [ String ] type Optional type assignment.
+  # @param [ String ] abbrevs Optional assignment of abbreviations.
   #
   # @return [ Array<String> ] Array of stock tickers.
-  def run(type: nil, abbrevs: ABBREVIATIONS)
+  def run(type: nil, abbrevs: nil)
     type(type)
 
-    abbrevs.each { |abbr| scrape abs_url("markets/symbolsearch?query=#{abbr}") }
+    abbrevs(abbrevs).each do |abbr|
+      scrape abs_url("markets/symbolsearch?query=#{abbr}")
+    end
 
     @hydra.run
     @stocks.uniq { |sym| sym.scan(/^[^:]*/)[0] }
