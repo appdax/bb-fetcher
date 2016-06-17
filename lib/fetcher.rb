@@ -100,7 +100,7 @@ class Fetcher
 
     page.css(sel)
         .select { |tr| tr.at_css('td:nth-child(4) text()').text.match(type) }
-        .map { |tr| tr.at_css('td.symbol a text()').text }
+        .map! { |tr| tr.at_css('td.symbol a text()').text }
   end
 
   # Determine whether the fetcher has to follow linked lists in case of
