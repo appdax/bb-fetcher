@@ -1,5 +1,5 @@
 RSpec.describe Fetcher do
-  let(:search_url) { 'http://www.bloomberg.com/markets/symbolsearch' }
+  let(:search_url) { 'https://www.bloomberg.com/markets/symbolsearch' }
   let(:fetcher) { described_class.new }
   subject { fetcher }
 

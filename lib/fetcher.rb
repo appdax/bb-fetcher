@@ -190,7 +190,7 @@ class Fetcher
   #
   # @return [ Void ]
   def scrape(url)
-    req = Typhoeus::Request.new(url)
+    req = Typhoeus::Request.new(url, timeout: 30, connecttimeout: 10)
 
     req.on_complete(&method(:on_complete))
 
@@ -207,7 +207,7 @@ class Fetcher
     return unless res.success?
 
     begin
-      page   = Nokogiri::HTML(res.body)
+      page   = Nokogiri::HTML(res.body, nil, 'UTF-8')
       stocks = stocks(page)
 
       @stocks.concat(stocks) if stocks
@@ -227,6 +227,6 @@ class Fetcher
   #
   # @return [ String ] The absolute URI.
   def abs_url(url)
-    "http://www.bloomberg.com/#{url}"
+    "https://www.bloomberg.com/#{url}"
   end
 end
