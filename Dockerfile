@@ -39,6 +39,6 @@ RUN apk del $BUILD_PACKAGES && \
     rm -rf $APP_HOME/spec
 
 RUN chmod -R +x bin
-RUN bundle exec whenever -i -r fetcher
+RUN bundle exec whenever -w -r fetcher
 
 CMD ["./bin/init"]
