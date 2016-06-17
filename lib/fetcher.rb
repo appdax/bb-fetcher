@@ -206,13 +206,15 @@ class Fetcher
   def on_complete(res)
     return unless res.success?
 
-    url     = res.effective_url
-    page    = Nokogiri::HTML(res.body)
-    tickers = stocks(page)
+    begin
+      page   = Nokogiri::HTML(res.body)
+      stocks = stocks(page)
 
-    linked_pages(page, url).each { |p| scrape p } if follow_linked_pages? url
-  ensure
-    @stocks.concat(tickers) if defined?(tickers) && tickers
+      @stocks.concat(stocks) if stocks
+    ensure
+      url = res.effective_url
+      linked_pages(page, url).each { |p| scrape p } if follow_linked_pages? url
+    end
   end
 
   # Add host and protocol to the URI to be absolute.
