@@ -2,6 +2,7 @@
 [![Code Climate](https://codeclimate.com/github/appdax/bb-fetcher/badges/gpa.svg)](https://codeclimate.com/github/appdax/bb-fetcher)
 [![Test Coverage](https://codeclimate.com/github/appdax/bb-fetcher/badges/coverage.svg)](https://codeclimate.com/github/appdax/bb-fetcher/coverage)
 [![Dependency Status](https://gemnasium.com/badges/github.com/appdax/bb-fetcher.svg)](https://gemnasium.com/github.com/appdax/bb-fetcher)
+[![Docker Container](https://imagelayers.io/badge/appdax/bb-fetcher:edge.svg)](https://imagelayers.io/?images=appdax/bb-fetcher:edge)
 [![Inline docs](http://inch-ci.org/github/appdax/bb-fetcher.svg?branch=master)](http://inch-ci.org/github/appdax/bb-fetcher)
 
 # bb-fetcher
