@@ -1,9 +1,11 @@
-require 'benchmark'
-require 'fetcher'
 
 namespace :fetch do
   desc 'Run the fetcher for bloomberg.com'
-  task(:stocks) { run_fetcher_and_create_list }
+  task(:stocks) do
+    require 'benchmark'
+    require 'fetcher'
+    run_fetcher_and_create_list
+  end
 end
 
 private

@@ -1,13 +1,14 @@
 /.yardoc/
 /vendor/bundle
 /vendor/mount
-build/
 /test/tmp/
 /lib/bundler/man/
 /coverage/
 .dat*
 .rvmrc
+.env
 .rubocop-http*
+/.dockerignore
 /tmp/
 /doc/
 /.config
@@ -23,4 +24,4 @@ config/development.yml
 /_yardoc/
 /pkg/
 /rdoc/
-/docker/
+/log/

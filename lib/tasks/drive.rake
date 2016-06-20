@@ -1,4 +1,3 @@
-require 'dropbox_sdk'
 
 namespace :drive do
   desc 'Upload list for scraping'
@@ -25,5 +24,6 @@ end
 #
 # @return [ DropboxClient ]
 def drive
+  require 'dropbox_sdk'
   @client ||= DropboxClient.new ENV['ACCESS_TOKEN']
 end
